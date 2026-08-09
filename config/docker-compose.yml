@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: eduway
+      POSTGRES_PASSWORD: eduway
+      POSTGRES_DB: eduway
+    ports:
+      - "5433:5432"
+    volumes:
+      - eduway_pg_data:/var/lib/postgresql/data
+
+volumes:
+  eduway_pg_data:
