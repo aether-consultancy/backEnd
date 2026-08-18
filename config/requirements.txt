@@ -3,7 +3,8 @@ uvicorn[standard]
 sqlalchemy
 psycopg2-binary
 pydantic[email]
-passlib[bcrypt]
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
 pyjwt
 redis
 python-dotenv
