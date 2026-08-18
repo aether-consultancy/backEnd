@@ -1,0 +1,93 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from dbmanager.connection import get_db
+from parentmanager.schemas import ParentSignup
+from parentmanager.logic import is_valid_phone, is_valid_password, normalize_phone
+from parentmanager import crud as parent_crud
+from frontendmanager.eduParent import crud
+from frontendmanager.eduParent.schemas import SignupOut, MoreInfoIn, MoreInfoOut
+from confirmationmanager import crud as confirmation_crud
+from confirmationmanager.schemas import VerificationCodeVerify
+from securitymanager.logic import generate_owner_token, verify_owner_token
+from frontendmanager.eduParent.schemas import LoginIn, LoginOut, LogoutAllOut
+from sessionmanager import crud as session_crud
+from sessionmanager.deps import get_current_parent
+from parentmanager.models import Parent
+from fastapi import Header
+
+router = APIRouter(prefix="/frontend/parent", tags=["frontend-parent"])
+
+
+@router.post("/signup", response_model=SignupOut, status_code=status.HTTP_201_CREATED)
+def signup(payload: ParentSignup, db: Session = Depends(get_db)):
+    if not payload.terms_accepted:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Terms must be accepted")
+    if payload.phone is not None and not is_valid_phone(payload.phone):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Phone must include country code")
+    if not is_valid_password(payload.password):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Password too weak")
+    if parent_crud.get_parent_by_email(db, payload.email):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Email already registered")
+
+    if payload.phone is not None:
+        payload.phone = normalize_phone(payload.phone)
+    parent, verification = crud.signup_parent(db, payload)
+
+    return SignupOut(
+        parent=parent,
+        verification_id=verification.id,
+        verification_expires_at=verification.expires_at.isoformat(),
+    )
+
+
+@router.post("/confirm-email/{verification_id}")
+def confirm_email(verification_id: int, payload: VerificationCodeVerify, db: Session = Depends(get_db)):
+    parent_id = confirmation_crud.verify_email_code(db, verification_id, payload.code)
+    if parent_id is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or expired code")
+
+    proof_token, _ = generate_owner_token(parent_id)
+    return {"parent_id": parent_id, "status": "verified", "proof_token": proof_token}
+
+
+@router.patch("/more-info", response_model=MoreInfoOut)
+def more_info(payload: MoreInfoIn, db: Session = Depends(get_db)):
+    parent_id = verify_owner_token(payload.proof_token)
+    if parent_id is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired proof token")
+
+    parent = parent_crud.get_parent_by_id(db, parent_id)
+    if not parent:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Parent not found")
+
+    data = payload.model_dump(exclude_unset=True, exclude={"remember_me", "device_info", "proof_token"})
+    if "phone" in data:
+        if not is_valid_phone(data["phone"]):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Phone must include country code")
+        data["phone"] = normalize_phone(data["phone"])
+
+    updated, token, record = crud.submit_more_info(db, parent, data, payload.remember_me, payload.device_info)
+    return MoreInfoOut(parent=updated, token=token, expires_at=record.expires_at.isoformat())
+
+
+@router.post("/login", response_model=LoginOut)
+def login(payload: LoginIn, db: Session = Depends(get_db)):
+    parent, token, record = crud.login_parent(db, payload.email, payload.password, payload.remember_me, payload.device_info)
+    if parent is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
+    return LoginOut(parent=parent, token=token, expires_at=record.expires_at.isoformat())
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(authorization: str = Header(...), db: Session = Depends(get_db)):
+    token = authorization.removeprefix("Bearer ").strip()
+    record = session_crud.logout(db, token)
+    if not record:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or already revoked session")
+
+
+@router.post("/logout-all", response_model=LogoutAllOut)
+def logout_all(db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    revoked = crud.logout_all_devices(db, parent.id)
+    return LogoutAllOut(sessions_revoked=revoked)
