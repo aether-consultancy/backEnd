@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.connection import Base, engine
-from app.db import models  # noqa: F401 (registers tables)
+from app.db import models  # registers tables
 from app.api import auth, progress
 
 
@@ -14,6 +14,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+Base.metadata.create_all(bind=engine)
 
 app.include_router(auth.router)
 app.include_router(progress.router)
