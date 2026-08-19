@@ -39,13 +39,13 @@ def signup_parent(db: Session, payload: ParentSignup) -> tuple[Parent, EmailVeri
 # session just means the FE retries session issuance, not a rollback).
 
 def submit_more_info(db: Session, parent: Parent, data: dict, remember_me: bool, device_info: str | None):
-    updated = parent_crud.update_parent(db, parent, data)
-    updated.onboarding_completed = True
     try:
-        db.commit()
+        updated = parent_crud.update_parent(db, parent, data)
     except IntegrityError:
         db.rollback()
         raise ValueError("Phone number already in use by another account")
+    updated.onboarding_completed = True
+    db.commit()
     db.refresh(updated)
     token, record = session_crud.issue_session(db, "parent", updated.id, remember_me, device_info)
     return updated, token, record
