@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from parentmanager.schemas import ParentSignup
 from parentmanager.models import Parent
@@ -40,7 +41,11 @@ def signup_parent(db: Session, payload: ParentSignup) -> tuple[Parent, EmailVeri
 def submit_more_info(db: Session, parent: Parent, data: dict, remember_me: bool, device_info: str | None):
     updated = parent_crud.update_parent(db, parent, data)
     updated.onboarding_completed = True
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise ValueError("Phone number already in use by another account")
     db.refresh(updated)
     token, record = session_crud.issue_session(db, "parent", updated.id, remember_me, device_info)
     return updated, token, record

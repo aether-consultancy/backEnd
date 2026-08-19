@@ -68,7 +68,10 @@ def more_info(payload: MoreInfoIn, db: Session = Depends(get_db)):
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Phone must include country code")
         data["phone"] = normalize_phone(data["phone"])
 
-    updated, token, record = crud.submit_more_info(db, parent, data, payload.remember_me, payload.device_info)
+    try:
+        updated, token, record = crud.submit_more_info(db, parent, data, payload.remember_me, payload.device_info)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
     return MoreInfoOut(parent=updated, token=token, expires_at=record.expires_at.isoformat())
 
 
