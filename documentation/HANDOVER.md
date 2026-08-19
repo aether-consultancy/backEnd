@@ -5,247 +5,287 @@ _Read this before touching the codebase. Written for whoever (human or AI) picks
 
 ## 1. WHO YOU ARE WORKING WITH
 
-The person running this project is the founder/sole dev. Key things to know before writing a single line:
+Terse, fast-moving, hands-on-keyboard. Runs every command himself on
+his own machine (`osaka`), copy-pasting from chat. No direct filesystem
+access — every code block is something HE executes and reports back.
 
-- **Terse, fast-moving, hands-on-keyboard.** He runs every command himself on his own machine (`osaka`), copy-pasting from chat. You never have direct filesystem access — treat every code block you write as something HE executes and reports back to you.
-- **All code delivered as heredoc (`PYEOF() { cat <<'EOF' ... EOF }; PYEOF | bash` or `PYEOF() { cat <<'EOF' ... EOF }; PYEOF > /tmp/x.py && cat /tmp/x.py > target/path`) or `sed -i`.** Never tell him to open an editor. Never create files for download — everything is a terminal command.
-- **No file downloads, no artifacts.** This is a CLI-only workflow.
-- **Code style:** minimal spacing, no decorative padding/alignment, clean and compact — "this is official codebase," not a tutorial.
-- **He catches your mistakes.** Multiple bugs have shipped in first drafts (dangling imports, orphaned fields, unguarded routes). ALWAYS re-verify by asking him to `cat`/`grep` the file back before declaring something done. Don't assume a write succeeded — confirm.
-- **He asks "we good??" a lot.** Answer honestly — if there's a real bug, say so and fix it. Don't rubber-stamp.
-- **He drives architecture, you propose options.** When he asks "what would you suggest," give a real recommendation with reasoning, not a menu with no opinion. He'll often cut it down ("that's a shit list") — that's normal, don't take it personally, just tighten up.
-- **Currency: KSH, not USD**, if money ever comes up.
-- **He is based in Nakuru, Kenya** — relevant for phone number formats (E.164, `+254...`), curriculum references (CBC), and localization decisions.
+- **All code delivered as heredoc** (`PYEOF() { cat <<'EOF' ... EOF }; PYEOF | bash`
+  or `PYEOF() { cat <<'EOF' ... EOF }; PYEOF > /tmp/x.py && cat /tmp/x.py > target/path`)
+  **or `sed -i`.** Never open an editor. Never create files for download.
+- Code style: minimal spacing, no decorative alignment, compact, non-AI-looking.
+- **Always re-verify** by asking him to `cat`/`grep` the file back before
+  declaring anything done. Don't assume a write succeeded.
+- **"we good??"** is his standard check-in. Answer honestly, fix real bugs.
+- He drives architecture, you propose options with real reasoning.
+- Currency: KSH. Based in Nakuru, Kenya (phone format `+254...`, CBC curriculum).
+- User preferences on file: no long AI explanations, all code in chat,
+  fixes as `sed -i`/python commands, code as PYEOF heredoc.
 
 ---
 
 ## 2. THE PROJECT
 
-**Eduway** — a learning terminal system for schools that don't have an existing school management system. Three portals: Student, Parent, Teacher (student portal not yet built at time of writing).
+**Eduway** — learning terminal system for schools without an existing
+school management system. Portals: Student (eduWay), Parent (eduParent).
+Teacher portal not started.
 
-- Two separate Expo/React Native apps: `eduParent` (parent-facing) and `eduWay/frontend` (kid-facing).
 - Backend: FastAPI + SQLAlchemy + PostgreSQL, deployed on Railway.
 - Backend root: `~/work/Eduway/backend`
 - Frontend apps: `~/work/Eduway/eduParent` and `~/work/Eduway/eduWay/frontend`
+- Both apps Expo/React Native, SDK 57.
 
-Brand: electric green `#3ED65E` + deep blue `#1A3FA0`. Mascots: Dobi (starfish, younger grades), Zeek & Zara (older grades).
+Brand: electric green `#3ED65E` + deep blue `#1A3FA0`. Mascots: Dobi
+(starfish, younger grades), Zeek & Zara (older grades).
 
 ---
 
-## 3. THE MANAGER ARCHITECTURE (READ THIS CAREFULLY)
+## 3. THE MANAGER ARCHITECTURE
 
-The entire backend is being restructured from a monolithic `app/` folder into independent **managers**. This is the single most important structural decision in the codebase — do not violate it.
-
-### The rule: one manager, one job.
-A manager owns ONE domain. It does not reach into another manager's tables directly. Cross-manager work happens by importing the other manager's `crud` module and calling its functions — never by querying another manager's models directly from your own crud/router.
-
-### Every manager has (up to) 5 files:
-1. **`models.py`** — SQLAlchemy tables this manager owns. Nothing else lives here.
-2. **`logic.py`** — the "brain." Pure business rules, constraints, validation functions. NO db session, no I/O. Pure functions that take data in, return decisions out.
-3. **`schemas.py`** — Pydantic request/response shapes.
-4. **`crud.py`** — the only file that touches the DB session directly. Every read/write goes through here. Can import other managers' `crud` when cross-manager writes are needed (see parentmanager→securitymanager example below).
-5. **`router.py`** — FastAPI routes ("EPs" — endpoints, his shorthand). Calls into `crud`/`logic`. No DB logic of its own.
-
-Not every manager needs a `logic.py` if there's nothing rule-based to enforce — but models/schemas/crud/router are close to mandatory once a manager owns any table.
-
-### Managers that exist so far:
+One manager, one job. A manager owns ONE domain, never reaches into
+another manager's tables directly — cross-manager work goes through
+importing the other manager's `crud` module. Each manager: models.py /
+logic.py / schemas.py / crud.py / router.py (logic.py optional if
+nothing rule-based to enforce).
 
 | Manager | Owns | Status |
 |---|---|---|
-| `dbmanager` | DB engine/session (`connection.py`) — no models of its own | ✅ done |
-| `parentmanager` | `Parent` table (identity/profile data only — NOT password) | ✅ done |
-| `securitymanager` | `ParentPassword`, `KidPassword`, `KidClaimToken`, `KidLoginToken`, `ParentResetCode`, `KidResetCode` — ALL password hashes, ALL tokens/codes | ✅ done |
-| `kidsmanager` | `Kid`, `KidInfo` | ✅ done |
-| `sessionmanager` | opaque bearer-token sessions (parent + kid, one table via owner_type/owner_id), issue/validate/logout/logout-all, TTL 7d default / 90d remember_me | ✅ done |
-| `confirmationmanager` | email verification codes + Brevo sending | ✅ done, not wired to legacy parentmanager signup (see below) |
-| `schoolmanager` | assignments/subjects/timetables | ❌ still not built — doesn't exist as a folder yet |
-| `frontendmanager` | aggregates multi-manager calls into single FE-facing EPs, split into `frontendmanager/eduParent` and `frontendmanager/eduWay` subfolders (one per app, never mixed) | ✅ full auth lifecycle done for both apps (see §9) |
+| `dbmanager` | DB engine/session (`connection.py`) | ✅ |
+| `parentmanager` | `Parent` table (identity only, no password) | ✅ |
+| `securitymanager` | all password hashes, all tokens/codes (parent + kid), generic owner_token (proof_token) | ✅ |
+| `kidsmanager` | `Kid`, `KidInfo` | ✅ |
+| `sessionmanager` | opaque bearer-token sessions (parent+kid, one table, owner_type/owner_id), issue/validate/logout/logout-all, TTL 7d default / 90d remember_me, `deps.py` holds `get_current_parent`/`get_current_kid` | ✅ |
+| `confirmationmanager` | email verification codes + Brevo sending | ✅ |
+| `frontendmanager/eduParent` | FE-facing EPs for parent app, aggregates other managers | ✅ full auth lifecycle |
+| `frontendmanager/eduWay` | FE-facing EPs for kid app, aggregates other managers | ✅ full auth lifecycle |
+| `schoolmanager` | assignments/subjects/timetables | ❌ does not exist yet |
 
-### Critical domain-split decisions already made — do not re-litigate these without him:
-- **Passwords never live on the Parent/Kid table.** They live in `securitymanager` as separate tables (`ParentPassword`, `KidPassword`) with a unique FK back to the owner. `parentmanager.crud.create_parent()` does NOT set a password — `parentmanager.router.signup()` calls `securitymanager.crud.create_parent_password()` right after creating the Parent row.
-- **Redis was deliberately removed.** Decided not needed at current scale. Logout/blacklist and caching will be handled via Postgres tables in `sessionmanager` instead. Don't reintroduce Redis without discussing it with him first.
-- **Grade / learning_system on Kid are plain strings, not enums.** Constraint/validation for allowed values belongs in the FRONTEND, not the DB. This was an explicit reversal — first draft had a Python enum, he corrected it.
-- **Kid-parent relationship is currently 1:1 (`Kid.parent_id`).** A future 2-parents-per-kid feature is planned but NOT implemented. `kidsmanager/logic.py` has `MAX_PARENTS_PER_KID = 2` and `can_link_another_parent()` stubbed in, commented as unused, waiting for a future `KidParentLink` many-to-many table.
-
----
-
-## 4. THE TWO KID AUTH FLOWS (easy to confuse — read carefully)
-
-Both use the same underlying signed-token mechanism (`securitymanager/logic.py`: `generate_kid_token` / `verify_kid_token`), but they are semantically different and use SEPARATE DB tables. Never conflate them.
-
-### A) Claim token (`KidClaimToken`) — signup / first-time provisioning
-- Parent creates a Kid record → generates a claim token/QR → kid scans it once → kid sets their password → account is "claimed."
-- One-time use. TTL: 15 minutes.
-- Route family: `/security/kids/{kid_id}/claim-token`, `/security/kids/claim/{claim_row_id}/{token}`, `.../confirm`
-
-### B) Login token (`KidLoginToken`) — day-to-day QR login
-- Parent's app shows a live QR (short-lived) → kid scans it → **token dies immediately at scan** (`used_at` set at resolve, not at password confirm) → app lands kid on a login screen pre-identified as that kid_id, password still required.
-- Two-step, decoupled: `/security/kids/login/{login_row_id}/{token}/resolve` (kills token, returns kid_id) → `/security/kids/login/confirm` (plain kid_id + password, NO token involved — token is already dead by this point).
-- TTL: 15 minutes, though intended for near-immediate use (like WhatsApp Web QR).
-- **Do not require the token to survive into the confirm step** — this was a real bug caught and fixed. The confirm step only needs the `kid_id` the client already got back from resolve.
-
-### Token internals (both A and B share this)
-- HMAC-SHA256 signed, `kid_id` embedded in the payload (not a DB lookup for identity — the DB row is ONLY used for replay/expiry tracking via `used_at`/`expires_at`).
-- Every generated token/QR link needs BOTH the signed token string AND the DB row's `id` — because the token is self-contained but you still need to know which row to check/mark used. URL shape: `.../{row_id}/{token}`.
-- Secret: `TOKEN_SECRET` env var.
-
-## 5. FORGOT PASSWORD (separate mechanism from the above — codes, not tokens)
-
-Both parent and kid have a forgot-password flow, but they're NOT QR/HMAC tokens — they're 6-char alphanumeric codes (`securitymanager/logic.py`: `generate_reset_code`), TTL 15 min, hashed at rest (`code_hash`, same hashing as passwords).
-
-- **Parent flow:** request → confirmationmanager (not yet built) sends the code via Brevo email → parent enters code (`verify` step, two-step) → parent sets new password (`set-password` step). Gated by "is this email verified?" — that gate belongs to confirmationmanager, not securitymanager. securitymanager's routes assume the gate has already passed.
-- **Kid flow:** parent generates the code in their own app (nothing sent anywhere — parent just reads it off-screen and tells the kid) → kid enters code → forced onto a set-new-password screen. Same two-step DB pattern (`verified_at` set on verify, `used_at` set on final consume) as parent, just no email/Brevo involved.
-- Both use `verified_at` as the hinge between the "verify code" screen and "set new password" screen — this exists specifically to support a two-screen UX without re-sending the code.
-
-**Brevo note:** Brevo is a mail carrier only. It does NOT generate OTPs/codes — you generate the code yourself and Brevo just sends the email. Confirmed via search, don't assume otherwise.
+Passwords never live on Parent/Kid tables — separate `ParentPassword`/
+`KidPassword` tables in securitymanager, unique FK back to owner.
+Grade/learning_system on Kid are plain strings — validated in FE only.
+Kid-parent is 1:1 currently (`Kid.parent_id`); `MAX_PARENTS_PER_KID = 2`
+stubbed in kidsmanager/logic.py for a future many-to-many, unused today.
 
 ---
 
-## 6. KNOWN GAPS / PLACEHOLDER WIRING (don't be surprised by these)
+## 4. THE TWO KID AUTH FLOWS
 
-- **`get_current_parent` / `get_current_kid`** are still imported from the OLD `app.api.deps` in every manager's router.py. These need to be replaced once `sessionmanager` is built (session-based auth is replacing raw JWT). Every file importing from `app.api.deps` is a known placeholder, not a mistake.
-- **`app.security.hashing`** (the actual `hash_password`/`verify_password` bcrypt functions) is still the old location — securitymanager re-exports it. Fine for now, may get pulled fully into securitymanager later.
-- **kidsmanager's `delete_kid` does NOT clean up securitymanager's rows** (KidPassword, tokens, reset codes) — that's intentionally a SEPARATE route (`DELETE /security/kids/{kid_id}`) in securitymanager. The plan is for `frontendmanager` to expose ONE delete-kid endpoint to the FE that internally calls both. `frontendmanager` does not exist yet — until it does, deleting a kid from the FE requires calling both endpoints, or you'll orphan security rows.
-- **`schoolmanager`** (assignments/subjects/timetables) and the old `app/api/*.py` files have NOT been migrated into this manager pattern yet. Treat `app/` as legacy soon-to-be-retired scaffolding, not the source of truth.
-- **CBC grade/learning_system constraint** lives in the frontend only — the backend stores plain strings, does not validate.
+Both use the same HMAC-signed token mechanism (`securitymanager/logic.py`:
+`generate_kid_token`/`verify_kid_token`), different DB tables, never conflate.
 
----
+**A) Claim token (`KidClaimToken`)** — signup/first-time provisioning.
+Parent creates Kid → generates claim QR → kid scans once → sets password
+→ claimed. One-time use, 15-min TTL. FE-facing via
+`frontendmanager/eduWay`: `GET /claim/{row_id}/{token}` (preview, now
+returns `is_claimed` — see §9) → `POST /claim/{row_id}/{token}/confirm`
+(sets password, consumes token).
 
-## 7. MOBILE APPS (Expo) — CURRENT STATE
+**B) Login token (`KidLoginToken`)** — day-to-day QR login. Parent's app
+shows a live short-lived QR → kid scans → token dies IMMEDIATELY at scan
+(not at password confirm) → kid lands on password screen pre-identified.
+FE-facing: `POST /login/{row_id}/{token}/resolve` (kills token, returns
+kid info) → `POST /login/confirm` (kid_id + password, NO token — already
+dead by this point).
 
-- Both `eduParent` and `eduWay/frontend` are on Expo SDK 57.
-- Both now have `expo-camera`, `expo-notifications`, `expo-updates` installed.
-- Both `app.json` files have `runtimeVersion: {"policy": "appVersion"}` and `updates.url` pointing at their respective `https://u.expo.dev/<projectId>`.
-- **A new native build (`eas build`) is required** before OTA updates will work — camera/notifications/updates are new native modules not yet in any built binary. Once that build ships, future JS-only changes can go out via `expo-updates` OTA without a new store build.
-
----
-
-## 8. HOW TO WORK WITH HIM GOING FORWARD
-
-1. When asked to build a new manager: ask what data/fields first, let him cut the list down, THEN write models. Don't skip straight to code.
-2. Deliver everything as heredoc/sed commands he can paste and run. Never say "create a file with this content" without giving the actual terminal command.
-3. After any batch of changes, ask him to `cat`/`grep` the affected files back to you and actually check for bugs (missing imports, orphaned references, unguarded routes) — this has caught 4+ real bugs already. Don't skip this step even when you're confident.
-4. If a decision has cross-manager implications (e.g. "who owns this field"), state the tradeoff plainly and let him decide — he has strong, fast opinions about domain ownership.
-5. Respect the one-manager-one-job rule even when it's less convenient — he has explicitly corrected drift toward convenience (e.g. moving password_hash off Parent even though it was "already working").
-6. Check this file's §6 (known gaps) before assuming something is broken — some incomplete wiring is deliberate and waiting on a not-yet-built manager.
+Every token needs both the signed string AND the DB row's id (self-
+contained signature + row for replay/expiry tracking). Secret: `TOKEN_SECRET` env var.
 
 ---
 
-_Last updated: reflects state through kidsmanager completion (models/logic/schemas/crud/router all shipped). Next manager up: sessionmanager or confirmationmanager._
+## 5. FORGOT PASSWORD
 
+Separate from tokens — 6-char alphanumeric codes, 15-min TTL, hashed at
+rest. Parent flow needs confirmationmanager to email the code (gated by
+"is this email verified?"). Kid flow: parent reads the code off their
+own screen, tells the kid, no email involved. Both use `verified_at` as
+the hinge between "enter code" and "set new password" screens.
 
-## 9. FRONTENDMANAGER — FULL AUTH LIFECYCLE (built after this doc's original writing)
+**These routes still live directly in `securitymanager/router.py`, NOT
+wrapped by frontendmanager yet.** Not part of the FE cross-check phase
+done so far — still open work if/when reset-password screens get built out.
+
+---
+
+## 6. FRONTENDMANAGER — FULL AUTH LIFECYCLE
 
 Two independent subfolders, never share a file, never call each other:
-`frontendmanager/eduParent/` and `frontendmanager/eduWay/`. Each has
-schemas.py/crud.py/router.py (no models.py — owns no tables; no logic.py
-— ordering rules live inline in crud.py as comments). Router prefixes:
-`/frontend/parent/...` and `/frontend/kid/...`.
+`frontendmanager/eduParent/` and `frontendmanager/eduWay/`. Router
+prefixes: `/frontend/parent/...` and `/frontend/kid/...`.
 
 ### Generic owner token (proof_token)
-`securitymanager/logic.py` has `generate_owner_token(owner_id)` /
-`verify_owner_token(token)` — thin aliases over the existing
-`generate_kid_token`/`verify_kid_token` HMAC functions, generalized to
-any int owner_id, not just kid_id. 15-min TTL, no DB row (no used_at
-tracking — single-shot proof, not a claim). Used wherever a later step
-in a flow needs proof "this request came right after a verified step"
-without trusting a bare ID in the URL/body (guessable-ID protection).
+`securitymanager/logic.py`: `generate_owner_token(owner_id)` /
+`verify_owner_token(token)` — thin aliases over `generate_kid_token`/
+`verify_kid_token`, generalized to any int owner_id. 15-min TTL, no DB
+row. Used to prove "this request came right after a verified step"
+without trusting a bare ID in the URL/body.
 
-### eduParent EPs (7 total)
-1. `POST /frontend/parent/signup` — atomic(create_parent + create_parent_password);
-   password-save failure rolls back the parent row. Verification email
-   sent AFTER that succeeds (best-effort, never rolls back a valid
-   account). Returns `{parent, verification_id, verification_expires_at}`.
-2. `POST /frontend/parent/confirm-email/{verification_id}` — body: `{code}`.
-   Verifies via confirmationmanager, returns `{parent_id, status, proof_token}`.
-3. `PATCH /frontend/parent/more-info` — body includes `proof_token` +
-   profile fields + `remember_me` + `device_info`. Gated by proof_token
-   (NOT a bare parent_id in the URL — that was a deliberate fix, see
-   git history / prior chat). Fills profile + issues session in one call.
-   Returns `{parent, token, expires_at}`.
-4. `POST /frontend/parent/login` — body: `{email, password, remember_me,
-   device_info}`. Resolves email→parent_id, verifies password, issues
-   session. No lockout/rate-limiting (deliberately skipped — sessionmanager
-   covers revocation, lockout wasn't asked for).
-5. `POST /frontend/parent/logout` — single device. Bearer token in
-   Authorization header, revokes that one session row.
-6. `POST /frontend/parent/logout-all` — requires an active session
-   (`get_current_parent` dependency). Cascades to every kid under that
-   parent (pulls kid_ids via kidsmanager, since sessionmanager never
-   imports kidsmanager directly — one-manager-one-job).
+### eduParent EPs (9 total)
+1. `POST /signup` — atomic(create_parent + create_parent_password),
+   rollback on password failure. Verification email sent after, best-effort.
+   Returns `{parent, verification_id, verification_expires_at}`.
+2. `POST /confirm-email/{verification_id}` — body `{code}`. Returns
+   `{parent_id, status, proof_token}`.
+3. `PATCH /more-info` — body `{proof_token, ...profile fields, remember_me,
+   device_info}`. No parent_id in URL — proof_token-gated. Fills profile +
+   issues session. Returns `{parent, token, expires_at}`. This is where
+   the person lands on home.
+4. `POST /login` — body `{email, password, remember_me, device_info}`.
+   Returns `{parent, token, expires_at}`. 401 generic on failure, no
+   lockout/rate-limiting (deliberately skipped).
+5. `POST /logout` — Bearer token header, revokes current session only.
+6. `POST /logout-all` — requires valid session. Cascades to every kid
+   under that parent (pulls kid_ids via kidsmanager first).
+7. `GET /kids` — list kids for the logged-in parent.
+8. `GET /kids/{kid_id}` — single kid profile + claim status.
+9. `GET /dashboard` — aggregates parent profile + kid list in one call.
+   Added because the old `/auth/me` route the FE was calling doesn't
+   exist — this is the correct facade route, session-authed.
 
-### eduWay (kid) EPs (6 total)
-1. `GET /frontend/kid/claim/{claim_row_id}/{token}` — read-only preview,
-   validates claim token WITHOUT consuming it, returns kid record for
-   the "is this you" screen.
-2. `POST /frontend/kid/claim/{claim_row_id}/{token}/confirm` — body:
-   `{password}`. Re-verifies token, blocks re-claiming an already-claimed
-   kid, sets password, marks token used, returns `{kid_id, proof_token}`.
-3. `PATCH /frontend/kid/more-info` — same proof_token-gated shape as
-   parent's more-info. `remember_me` is exposed here too — kids get
-   remember_me (deliberate call: kids forget passwords more than
-   parents, QR+remember_me minimizes friction without weakening security
-   since revocation still works via the sessions table).
-4. `POST /frontend/kid/login/{login_row_id}/{token}/resolve` — QR scan:
-   kills the login token IMMEDIATELY at this step (used_at set here, not
-   at confirm), returns kid record so app can show "Hi {name}".
-5. `POST /frontend/kid/login/confirm` — body: `{kid_id, password,
-   remember_me, device_info}`. NO token here — resolve already killed
-   it, this is plain credential check + session issuance.
-6. `POST /frontend/kid/logout` — single device only. No logout-all for
-   kids (that's parent-triggered only, lives in eduParent's logout-all).
+### eduWay (kid) EPs (7 total)
+1. `GET /claim/{row_id}/{token}` — read-only preview, does NOT consume
+   token. Returns `{kid, is_claimed}`. `is_claimed` added post-launch
+   (see §9) — FE must branch on it.
+2. `POST /claim/{row_id}/{token}/confirm` — body `{password}`. Blocks
+   re-claim, sets password, consumes token. Returns `{kid_id, proof_token}`.
+3. `PATCH /more-info` — proof_token-gated, same pattern as parent's.
+   `remember_me` exposed here too (kids get remember_me — deliberate,
+   kids forget passwords more than parents).
+4. `POST /login/{row_id}/{token}/resolve` — kills token immediately.
+   Returns kid info for "Hi {name}" screen.
+5. `POST /login/confirm` — body `{kid_id, password, remember_me,
+   device_info}`. No token — already consumed by resolve.
+6. `POST /logout` — single device only, no logout-all for kids (that's
+   parent-triggered, cascading, lives in eduParent's logout-all).
+7. `GET /dashboard` — session-authed (`get_current_kid`), returns
+   `KidProfileOut`. Replaces the dead `/auth/me` the FE was calling.
 
-### Stale routes — commented out, NOT deleted
-Two pairs of routes were superseded by frontendmanager but kept
-(commented, with a pointer comment to the replacement) as rollback
-insurance until the new routes are proven in production:
-- `parentmanager/router.py` — the old `/parent/signup` POST route is
-  marked `# STALE` (function body still live/uncommented, just flagged)
-  since frontendmanager/eduParent's signup fully replaces it (adds
-  atomic rollback + verification email it never had).
-- `securitymanager/router.py` — `preview_claim`/`confirm_claim`
-  (`GET/POST /security/kids/claim/{claim_row_id}/{token}...`) are FULLY
-  commented out (not just flagged) since frontendmanager/eduWay's
-  claim-preview/claim-confirm are a strict superset (adds proof_token).
+### Stale routes — commented/flagged, not deleted (rollback insurance)
+- `parentmanager/router.py` `/parent/signup` — marked `# STALE`, body
+  still live. Superseded by frontendmanager's signup (adds rollback +
+  verification email).
+- `securitymanager/router.py` `preview_claim`/`confirm_claim` pair
+  (`/security/kids/claim/{row_id}/{token}...`) — FULLY commented out.
   `create_claim_token`, `claim_token_status`, `create_login_token`,
-  `resolve_login`/`confirm_login` (old, pre-frontendmanager versions)
-  are all still LIVE and NOT stale — only the preview+confirm PAIR was
-  duplicated by frontendmanager.
+  `resolve_login`, `confirm_login` are all still LIVE, not stale.
 
-### main.py — brand new, `app/` folder deleted
-The old `app/` folder (auth.py, progress.py, app.db.connection, and
-app.security.hashing) is GONE — deleted and backed up to
-`~/work/Eduway/backend/app_folder_backup_20260819.tar.gz`. `main.py` is
-now at the backend ROOT (`~/work/Eduway/backend/main.py`), not inside
-any `app/` folder. It imports `Base`/`engine` from `dbmanager.connection`
-(not the old `app.db.connection`) and wires all 7 manager routers plus
-both frontendmanager routers via `include_router`.
+---
 
-`hash_password`/`verify_password` (passlib bcrypt) moved from the
-deleted `app/security/hashing.py` into `securitymanager/logic.py` —
-this is their permanent home now, re-exported from `securitymanager/crud.py`
-for any router that still imports from there.
+## 7. main.py, requirements, DEPLOY STATE (major changes this pass)
 
-**`progress.py` was NOT migrated** — its logic (UserProgress data,
-part of the original C++ rendering engine backend architecture) is
-sitting in the backup tarball only. No manager owns it yet. If progress
-tracking work comes up, decide then whether it becomes its own manager
-or folds into an existing one — don't assume it's covered.
+- Old `app/` folder (auth.py, progress.py, app.db.connection,
+  app.security.hashing) — **DELETED**, backed up to
+  `~/work/Eduway/backend/app_folder_backup_20260819.tar.gz`. `progress.py`
+  logic (UserProgress) was NOT migrated — no manager owns it, only in
+  the backup tarball. Decide later if/when progress tracking work comes up.
+- `main.py` now lives at backend ROOT, not inside any `app/` folder.
+  Imports `Base`/`engine` from `dbmanager.connection`, wires all 7
+  manager routers + both frontendmanager routers.
+- `hash_password`/`verify_password` (passlib bcrypt) moved permanently
+  into `securitymanager/logic.py`, re-exported from `securitymanager/crud.py`.
+- **`Base.metadata.create_all(bind=engine)` REMOVED from main.py.**
+  Alembic now owns schema exclusively. This was a real bug this
+  session — `create_all()` racing against `alembic upgrade` caused a
+  `DuplicateTable` crash. Never re-add `create_all()` to main.py.
+- **Alembic baseline regenerated from scratch.** All old migration
+  files deleted (explicit call, fresh start), new baseline autogenerated
+  (`migrations/versions/a8a20ec8d647_baseline.py`) against a fully
+  empty DB — contains real `CREATE TABLE` statements for all 12 tables.
+  `migrations/env.py` correctly imports all 5 manager `models.py` files.
+- **`config/requirements.txt` cleaned:** dropped `redis`, `pyjwt`
+  (confirmed zero imports anywhere in codebase). Added `requests`
+  (confirmationmanager's Brevo calls need it — was a real missing-dep
+  crash on Railway) and `alembic==1.18.5` (pinned to match local).
+- **`Procfile` fixed:** was `web: uvicorn app.main:app` (stale, pointed
+  at deleted folder) — now `web: uvicorn main:app --host 0.0.0.0 --port $PORT`.
+- **Local Postgres and Railway Postgres were both wiped and rebuilt**
+  from the new baseline this session (`DROP SCHEMA public CASCADE;
+  CREATE SCHEMA public;` then `alembic upgrade head`) — deliberate
+  fresh-start call, not accidental data loss.
+- **Redis service is STILL PROVISIONED on Railway** as of this doc's
+  writing — flagged for removal (decision already made, not yet
+  executed). Check `railway status` — if `Redis: ● Online` still shows,
+  it needs to be removed via Railway dashboard/CLI once confirmed
+  nothing depends on it.
+- **Railway deploy status: was actively being debugged when this doc
+  was last updated.** Crash chain this session: (1) stale Procfile →
+  fixed, (2) missing `requests` dependency → fixed, (3) missing `KidOut`
+  import in `frontendmanager/eduParent/schemas.py` (real bug, `DashboardOut`
+  used `KidOut` without importing it) → fixed. **Check `railway status`
+  and `railway logs --service backEnd` before assuming production is
+  healthy** — do not trust this doc's "done" claims over the live check.
+- **FastAPI version 0.140.7** — wraps `include_router()` as lazy
+  `_IncludedRouter` objects. Use `app.openapi()['paths']`, NOT
+  `len(app.routes)`, to verify routes registered.
 
-**FastAPI version note**: this backend runs FastAPI 0.140.7, which
-wraps `include_router()` calls as lazy `_IncludedRouter` objects — DO
-NOT check `len(app.routes)` or iterate `app.routes` directly to verify
-routes registered (older-FastAPI habit, gives false negatives on this
-version). Use `app.openapi()['paths']` instead — that forces full
-resolution and shows every real registered endpoint.
+---
 
-## 10. NEXT PHASE — FRONTEND CROSS-CHECK (see FE_CROSSCHECK_ORIENTATION.md)
+## 8. MOBILE APPS — BUILD STATE
 
-As of this doc's update, backend auth work for BOTH apps is functionally
-complete and smoke-tested (app loads, all expected paths present in the
-OpenAPI schema). The person is now moving to validate/rebuild the FE
-screens against these new contracts — starting with eduParent, then
-eduWay, then bundling both apps together (with an app-update-check
-page/logic still to be added after that). See the dedicated orientation
-doc for full context on that phase; it's long enough to warrant its own
-file rather than growing this one further.
+- Both apps: Expo SDK 57, `expo-camera`/`expo-notifications`/`expo-updates` installed.
+- `.env` files in both apps: `EXPO_PUBLIC_API_URL` uncommented, pointing
+  at Railway production URL (`https://backend-production-0bf71.up.railway.app`).
+  This only takes effect on a real `eas build` — not a dev reload.
+- Both `eas.json` now have `"appVersionSource": "remote"` set at the
+  `cli` level (EAS tracks version codes server-side, avoids local
+  version-file collisions).
+- **eduParent production APK build: completed** this session
+  (`eas build --platform android --profile production`), `autoIncrement:
+  true` added to its production profile to match eduWay.
+- **eduWay production APK build: was in progress/queued** as of this
+  doc's last update — confirm completion status before assuming it's
+  ready to ship to clients.
+- Neither app has a build yet that bundles `expo-updates`' native
+  module in a way that's been verified working — `useAppUpdates`/
+  `useManualUpdateCheck` hooks (eduWay) guard against the native module
+  being absent (`require('expo-updates')` wrapped in try/catch) so the
+  app won't crash on older/dev-client builds, but OTA won't actually
+  function until a build with the module properly linked is confirmed
+  and an `eas update` is published against it.
+
+---
+
+## 9. UPDATE — claim preview now returns is_claimed
+
+`frontendmanager/eduWay`'s `GET /claim/{row_id}/{token}` returns
+`{kid, is_claimed}`. Closes a dead-end: previously an already-claimed
+kid's QR would preview fine, walk through ConfirmDetails/SetPassword,
+and only fail at final confirm with a 400. FE (`ScanQrScreen.js`) now
+checks `is_claimed` right after the scan and redirects straight to
+`KidLoginScreen`, skipping the dead path. Computed in
+`frontendmanager/eduWay/crud.py`'s `preview_claim` via
+`security_crud.get_kid_password(db, kid_id) is not None`.
+
+---
+
+## 10. WHAT'S CONFIRMED WORKING END-TO-END (this session, eduWay only)
+
+- Full kid claim flow: scan → preview (with is_claimed check) → confirm
+  password → more-info → session issued → home. Visually confirmed by
+  the person, not just BE-tested.
+- Kid QR login flow: resolve → confirm → session. Fixed from a dead
+  `/auth/kids/login` + `/auth/me` combo to the real
+  `/frontend/kid/login/confirm` contract (also dropped the redundant
+  second fetch — confirm's response already has the full kid profile).
+- Kid logout: `ProfileScreen.js` now actually calls `/frontend/kid/logout`
+  before clearing local session state (previously was local-only, a real bug).
+- Kid dashboard-fetching screens (`KidsHomeScreen`, `ProfileScreen`,
+  `SchoolScreen`, `AssignmentsScreen`) repointed from dead `/auth/me` to
+  `/frontend/kid/dashboard`.
+- eduWay-only manual "Check for updates" screen, linked from Profile,
+  built and wired (separate from the silent auto-check-on-launch banner
+  in App.js — both exist, serve different purposes).
+
+## 11. WHAT'S NOT YET CONFIRMED (do not assume done)
+
+- **eduParent FE screens were NOT walked through this session** beyond
+  BE-side dashboard EP addition. `ScanQrScreen`-equivalent, `AuthScreen`,
+  signup flow screens on the parent app have not been re-verified
+  against the current frontendmanager contract. Treat as unverified,
+  not broken — just unchecked.
+- **Forgot-password flows (both apps)** — routes exist BE-side in
+  securitymanager, un-wrapped by frontendmanager, FE screens
+  (`ResetCodeScreen`, `ResetPasswordConfirmScreen` on eduWay) not
+  checked against them this session.
+- **Railway's actual live/healthy status** — see §7, was mid-fix at
+  last doc update. Verify before treating production as stable.
+- **Redis removal on Railway** — decision made, not executed.
+- **eduWay's production build completion** — confirm before distributing.
