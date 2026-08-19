@@ -12,6 +12,7 @@ class Parent(Base):
 
     terms_accepted_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     email_verified = Column(Boolean, nullable=False, default=False, server_default="false")
+    onboarding_completed = Column(Boolean, nullable=False, default=False, server_default="false")
 
     preferred_language = Column(String, nullable=True)
     nickname = Column(String, nullable=True)

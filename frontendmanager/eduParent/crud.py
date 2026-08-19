@@ -8,6 +8,7 @@ from confirmationmanager import crud as confirmation_crud
 from confirmationmanager.models import EmailVerificationCode
 from sessionmanager import crud as session_crud
 from kidsmanager import crud as kids_crud
+from kidsmanager.models import Kid, KidInfo
 
 
 # ---------- signup ----------
@@ -38,6 +39,9 @@ def signup_parent(db: Session, payload: ParentSignup) -> tuple[Parent, EmailVeri
 
 def submit_more_info(db: Session, parent: Parent, data: dict, remember_me: bool, device_info: str | None):
     updated = parent_crud.update_parent(db, parent, data)
+    updated.onboarding_completed = True
+    db.commit()
+    db.refresh(updated)
     token, record = session_crud.issue_session(db, "parent", updated.id, remember_me, device_info)
     return updated, token, record
 
@@ -65,3 +69,43 @@ def login_parent(db: Session, email: str, password: str, remember_me: bool, devi
 def logout_all_devices(db: Session, parent_id: int) -> int:
     kid_ids = [k.id for k in kids_crud.list_kids_by_parent(db, parent_id)]
     return session_crud.logout_all_devices(db, parent_id, kid_ids)
+
+# ---------- kid list + profile (parent-facing) ----------
+# parent app never calls kidsmanager or securitymanager directly — these
+# aggregate both into the shapes the FE actually needs.
+
+def list_kids(db: Session, parent_id: int) -> list[Kid]:
+    return kids_crud.list_kids_by_parent(db, parent_id)
+
+
+def get_kid_profile(db: Session, kid_id: int, parent_id: int):
+    kid = kids_crud.get_kid_by_id(db, kid_id, parent_id)
+    if not kid:
+        return None
+
+    info = kids_crud.get_kid_info(db, kid_id)
+    claimed = security_crud.get_kid_password(db, kid_id) is not None
+
+    return {
+        "id": kid.id,
+        "full_name": kid.full_name,
+        "school": kid.school,
+        "grade": kid.grade,
+        "learning_system": kid.learning_system,
+        "nickname": info.nickname if info else None,
+        "age": info.age if info else None,
+        "favorite_color": info.favorite_color if info else None,
+        "favorite_animal": info.favorite_animal if info else None,
+        "subjects_loved": info.subjects_loved if info else None,
+        "claimed": claimed,
+    }
+
+# ---------- dashboard ----------
+# aggregates parent profile + kid list in one call — the whole point of
+# a facade route, vs the FE hitting /parent/profile and /kids
+# separately against two different managers.
+
+def get_dashboard(db: Session, parent: Parent):
+    kids = kids_crud.list_kids_by_parent(db, parent.id)
+    return parent, kids
+

@@ -21,7 +21,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-Base.metadata.create_all(bind=engine)
 
 app.include_router(parentmanager_router.router)
 app.include_router(kidsmanager_router.router)

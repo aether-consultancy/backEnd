@@ -9,6 +9,8 @@ from fastapi import Header
 from kidsmanager.schemas import KidProfileOut
 from securitymanager.logic import generate_owner_token, verify_owner_token
 from kidsmanager import crud as kids_crud
+from kidsmanager.schemas import KidProfileOut
+from sessionmanager.deps import get_current_kid
 from kidsmanager.logic import is_valid_age
 
 
@@ -17,10 +19,10 @@ router = APIRouter(prefix="/frontend/kid", tags=["frontend-kid"])
 
 @router.get("/claim/{claim_row_id}/{token}", response_model=ClaimPreviewOut)
 def claim_preview(claim_row_id: int, token: str, db: Session = Depends(get_db)):
-    kid = crud.preview_claim(db, claim_row_id, token)
+    kid, is_claimed = crud.preview_claim(db, claim_row_id, token)
     if kid is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Invalid or expired code")
-    return ClaimPreviewOut(kid=kid)
+    return ClaimPreviewOut(kid=kid, is_claimed=is_claimed)
 
 
 @router.post("/claim/{claim_row_id}/{token}/confirm", response_model=ClaimConfirmOut)
@@ -85,3 +87,23 @@ def logout(authorization: str = Header(...), db: Session = Depends(get_db)):
     record = session_crud.logout(db, token)
     if not record:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or already revoked session")
+
+@router.get("/dashboard", response_model=KidProfileOut)
+def dashboard(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    result = crud.get_dashboard(db, kid.id)
+    if result is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid not found")
+    kid_row, info = result
+    return KidProfileOut(
+        id=kid_row.id,
+        full_name=kid_row.full_name,
+        school=kid_row.school,
+        grade=kid_row.grade,
+        learning_system=kid_row.learning_system,
+        nickname=info.nickname if info else None,
+        age=info.age if info else None,
+        favorite_color=info.favorite_color if info else None,
+        favorite_animal=info.favorite_animal if info else None,
+        subjects_loved=info.subjects_loved if info else None,
+    )
+

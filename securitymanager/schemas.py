@@ -2,6 +2,7 @@ from pydantic import BaseModel
 
 
 class KidTokenOut(BaseModel):
+    row_id: int
     token: str
     expires_at: str
 

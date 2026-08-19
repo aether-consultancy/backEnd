@@ -54,7 +54,7 @@ def change_kid_password(
 @router.post("/kids/{kid_id}/claim-token", response_model=KidTokenOut)
 def create_claim_token(kid_id: int, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
     token, record = crud.create_claim_token(db, kid_id)
-    return KidTokenOut(token=f"{record.id}.{token}", expires_at=record.expires_at.isoformat())
+    return KidTokenOut(row_id=record.id, token=token, expires_at=record.expires_at.isoformat())
 
 
 @router.get("/kids/{kid_id}/claim-token/status")
@@ -92,7 +92,7 @@ def claim_token_status(kid_id: int, db: Session = Depends(get_db), parent: Paren
 @router.post("/kids/{kid_id}/login-token", response_model=KidTokenOut)
 def create_login_token(kid_id: int, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
     token, record = crud.create_login_token(db, kid_id)
-    return KidTokenOut(token=f"{record.id}.{token}", expires_at=record.expires_at.isoformat())
+    return KidTokenOut(row_id=record.id, token=token, expires_at=record.expires_at.isoformat())
 
 
 @router.post("/kids/login/{login_row_id}/{token}/resolve")

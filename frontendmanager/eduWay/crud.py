@@ -11,11 +11,14 @@ from sessionmanager import crud as session_crud
 # the kid record the parent already created so the kid app can show
 # "is this you" before any password is set.
 
-def preview_claim(db: Session, claim_row_id: int, token: str) -> Kid | None:
+def preview_claim(db: Session, claim_row_id: int, token: str) -> tuple[Kid | None, bool]:
     kid_id = security_crud.resolve_claim_token(db, token, claim_row_id)
     if kid_id is None:
-        return None
-    return kids_crud.get_kid_by_id_only(db, kid_id)
+        return None, False
+
+    kid = kids_crud.get_kid_by_id_only(db, kid_id)
+    is_claimed = security_crud.get_kid_password(db, kid_id) is not None
+    return kid, is_claimed
 
 
 # ---------- claim confirm + set password ----------
@@ -71,3 +74,16 @@ def confirm_login(db: Session, kid_id: int, password: str, remember_me: bool, de
     kid = kids_crud.get_kid_by_id_only(db, kid_id)
     token, record = session_crud.issue_session(db, "kid", kid_id, remember_me, device_info)
     return kid, token, record
+
+# ---------- dashboard ----------
+# kid app never calls kidsmanager's /kids/me directly — this is the
+# facade route. Currently just re-exposes the kid's own profile; room
+# to aggregate more (assignments, school data) once schoolmanager exists.
+
+def get_dashboard(db: Session, kid_id: int):
+    kid = kids_crud.get_kid_by_id_only(db, kid_id)
+    if not kid:
+        return None
+    info = kids_crud.get_kid_info(db, kid_id)
+    return kid, info
+

@@ -42,3 +42,14 @@ class LoginOut(BaseModel):
 
 class LogoutAllOut(BaseModel):
     sessions_revoked: int
+
+from kidsmanager.schemas import KidProfileOut
+
+
+class KidProfileWithStatusOut(KidProfileOut):
+    claimed: bool
+
+class DashboardOut(BaseModel):
+    parent: ParentOut
+    kids: list[KidOut]
+

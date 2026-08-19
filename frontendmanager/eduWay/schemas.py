@@ -4,6 +4,7 @@ from kidsmanager.schemas import KidOut, KidProfileOut
 
 class ClaimPreviewOut(BaseModel):
     kid: KidOut
+    is_claimed: bool
 
 
 class ClaimConfirmIn(BaseModel):

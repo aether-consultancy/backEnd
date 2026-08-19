@@ -6,7 +6,8 @@ from parentmanager.schemas import ParentSignup
 from parentmanager.logic import is_valid_phone, is_valid_password, normalize_phone
 from parentmanager import crud as parent_crud
 from frontendmanager.eduParent import crud
-from frontendmanager.eduParent.schemas import SignupOut, MoreInfoIn, MoreInfoOut
+from frontendmanager.eduParent.schemas import SignupOut, MoreInfoIn, MoreInfoOut, KidProfileWithStatusOut, DashboardOut
+from kidsmanager.schemas import KidOut
 from confirmationmanager import crud as confirmation_crud
 from confirmationmanager.schemas import VerificationCodeVerify
 from securitymanager.logic import generate_owner_token, verify_owner_token
@@ -91,3 +92,21 @@ def logout(authorization: str = Header(...), db: Session = Depends(get_db)):
 def logout_all(db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
     revoked = crud.logout_all_devices(db, parent.id)
     return LogoutAllOut(sessions_revoked=revoked)
+
+@router.get("/kids", response_model=list[KidOut])
+def list_kids(db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    return crud.list_kids(db, parent.id)
+
+
+@router.get("/kids/{kid_id}", response_model=KidProfileWithStatusOut)
+def get_kid_profile(kid_id: int, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    profile = crud.get_kid_profile(db, kid_id, parent.id)
+    if profile is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid not found")
+    return KidProfileWithStatusOut(**profile)
+
+@router.get("/dashboard", response_model=DashboardOut)
+def dashboard(db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    parent_row, kids = crud.get_dashboard(db, parent)
+    return DashboardOut(parent=parent_row, kids=kids)
+
