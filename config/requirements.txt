@@ -5,6 +5,6 @@ psycopg2-binary
 pydantic[email]
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
-pyjwt
-redis
 python-dotenv
+requests
+alembic==1.18.5
