@@ -204,3 +204,39 @@ def delete_kid_security_data(db: Session, kid_id: int) -> None:
     db.query(KidLoginToken).filter(KidLoginToken.kid_id == kid_id).delete()
     db.query(KidResetCode).filter(KidResetCode.kid_id == kid_id).delete()
     db.commit()
+
+
+# ---------- kid forgot password (kid_id-keyed, for FE wrappers) ----------
+
+def get_active_kid_reset_code(db: Session, kid_id: int) -> KidResetCode | None:
+    return (
+        db.query(KidResetCode)
+        .filter(KidResetCode.kid_id == kid_id, KidResetCode.used_at.is_(None))
+        .order_by(KidResetCode.id.desc())
+        .first()
+    )
+
+
+def verify_kid_reset_code_by_kid(db: Session, kid_id: int, code: str) -> bool:
+    record = get_active_kid_reset_code(db, kid_id)
+    if not record or record.expires_at < datetime.now(timezone.utc):
+        return False
+    if not verify_password(code, record.code_hash):
+        return False
+    record.verified_at = datetime.now(timezone.utc)
+    db.commit()
+    return True
+
+
+def consume_kid_reset_code_by_kid(db: Session, kid_id: int, new_password: str) -> bool:
+    record = get_active_kid_reset_code(db, kid_id)
+    if not record or record.verified_at is None:
+        return False
+    existing = get_kid_password(db, kid_id)
+    if existing:
+        existing.password_hash = hash_password(new_password)
+    else:
+        db.add(KidPassword(kid_id=kid_id, password_hash=hash_password(new_password)))
+    record.used_at = datetime.now(timezone.utc)
+    db.commit()
+    return True

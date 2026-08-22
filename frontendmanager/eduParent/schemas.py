@@ -53,3 +53,10 @@ class DashboardOut(BaseModel):
     parent: ParentOut
     kids: list[KidOut]
 
+
+
+# ---------- reset kid password (parent generates code) ----------
+
+class ResetKidPasswordOut(BaseModel):
+    code: str
+    expires_at: str

@@ -52,3 +52,20 @@ class LoginConfirmOut(BaseModel):
 
 class LogoutOut(BaseModel):
     status: str
+
+
+# ---------- reset password (kid verifies code + sets new password) ----------
+
+class ResetPasswordVerifyIn(BaseModel):
+    kid_id: int
+    code: str
+
+class ResetPasswordVerifyOut(BaseModel):
+    proof_token: str
+
+class ResetPasswordSetIn(BaseModel):
+    proof_token: str
+    new_password: str
+
+class ResetPasswordSetOut(BaseModel):
+    status: str

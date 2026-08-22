@@ -114,3 +114,15 @@ def get_dashboard(db: Session, parent: Parent):
     kids = kids_crud.list_kids_by_parent(db, parent.id)
     return parent, kids
 
+
+
+# ---------- reset kid password ----------
+# parent-owned action: generates a code for their own kid only,
+# ownership enforced via kid.parent_id check before touching securitymanager.
+
+def reset_kid_password(db: Session, kid_id: int, parent_id: int):
+    kid = kids_crud.get_kid_by_id_only(db, kid_id)
+    if not kid or kid.parent_id != parent_id:
+        return None
+    code, record = security_crud.create_kid_reset_code(db, kid_id)
+    return code, record.expires_at

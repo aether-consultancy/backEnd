@@ -6,7 +6,7 @@ from parentmanager.schemas import ParentSignup
 from parentmanager.logic import is_valid_phone, is_valid_password, normalize_phone
 from parentmanager import crud as parent_crud
 from frontendmanager.eduParent import crud
-from frontendmanager.eduParent.schemas import SignupOut, MoreInfoIn, MoreInfoOut, KidProfileWithStatusOut, DashboardOut
+from frontendmanager.eduParent.schemas import SignupOut, MoreInfoIn, MoreInfoOut, KidProfileWithStatusOut, DashboardOut, ResetKidPasswordOut
 from kidsmanager.schemas import KidOut
 from confirmationmanager import crud as confirmation_crud
 from confirmationmanager.schemas import VerificationCodeVerify
@@ -113,3 +113,14 @@ def dashboard(db: Session = Depends(get_db), parent: Parent = Depends(get_curren
     parent_row, kids = crud.get_dashboard(db, parent)
     return DashboardOut(parent=parent_row, kids=kids)
 
+
+
+# ---------- reset kid password ----------
+
+@router.post("/reset-kid-password/{kid_id}", response_model=ResetKidPasswordOut)
+def reset_kid_password_ep(kid_id: int, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    result = crud.reset_kid_password(db, kid_id, parent.id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Kid not found")
+    code, expires_at = result
+    return ResetKidPasswordOut(code=code, expires_at=expires_at.isoformat())

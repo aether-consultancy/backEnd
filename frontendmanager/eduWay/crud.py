@@ -87,3 +87,13 @@ def get_dashboard(db: Session, kid_id: int):
     info = kids_crud.get_kid_info(db, kid_id)
     return kid, info
 
+
+
+# ---------- reset password (kid side) ----------
+
+def verify_reset_code(db: Session, kid_id: int, code: str) -> bool:
+    return security_crud.verify_kid_reset_code_by_kid(db, kid_id, code)
+
+
+def set_new_password(db: Session, kid_id: int, new_password: str) -> bool:
+    return security_crud.consume_kid_reset_code_by_kid(db, kid_id, new_password)

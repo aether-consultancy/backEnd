@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from dbmanager.connection import get_db
 from frontendmanager.eduWay import crud
-from frontendmanager.eduWay.schemas import ClaimPreviewOut, ClaimConfirmIn, ClaimConfirmOut, MoreInfoIn, MoreInfoOut, LoginResolveOut, LoginConfirmIn, LoginConfirmOut
+from frontendmanager.eduWay.schemas import ClaimPreviewOut, ClaimConfirmIn, ClaimConfirmOut, MoreInfoIn, MoreInfoOut, LoginResolveOut, LoginConfirmIn, LoginConfirmOut, ResetPasswordVerifyIn, ResetPasswordVerifyOut, ResetPasswordSetIn, ResetPasswordSetOut
 from sessionmanager import crud as session_crud
 from fastapi import Header
 from kidsmanager.schemas import KidProfileOut
@@ -107,3 +107,25 @@ def dashboard(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
         subjects_loved=info.subjects_loved if info else None,
     )
 
+
+
+# ---------- reset password (kid side) ----------
+
+@router.post("/reset-password/verify", response_model=ResetPasswordVerifyOut)
+def verify_reset_password(payload: ResetPasswordVerifyIn, db: Session = Depends(get_db)):
+    ok = crud.verify_reset_code(db, payload.kid_id, payload.code)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    proof_token, _ = generate_owner_token(payload.kid_id)
+    return ResetPasswordVerifyOut(proof_token=proof_token)
+
+
+@router.post("/reset-password/set", response_model=ResetPasswordSetOut)
+def set_reset_password(payload: ResetPasswordSetIn, db: Session = Depends(get_db)):
+    kid_id = verify_owner_token(payload.proof_token)
+    if kid_id is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+    ok = crud.set_new_password(db, kid_id, payload.new_password)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Reset not verified")
+    return ResetPasswordSetOut(status="password_reset")
