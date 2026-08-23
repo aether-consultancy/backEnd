@@ -105,10 +105,12 @@ def mark_slot_solved(db: Session, kid_id: int, level_id: int, slot_number: int) 
 
 
 def _apply_streak(progress: KidGameProgress) -> None:
-    # streak expires 24h after the last completion, not calendar-day based.
-    # completing again within 24h of the last one does not double-count;
-    # completing again between 24h-48h continues the streak; anything
-    # beyond 48h (or no prior completion) resets it to 1.
+    # Snapchat-style: the 24h window only governs when the streak DIES -
+    # if more than 24 real hours pass with no play at all, it breaks.
+    # Within that window, the streak increments the moment play crosses
+    # into a new calendar day (not a fixed 24h/48h gap) - so 10pm then
+    # 1am the next day (a 3h gap) still counts as day 2. Repeat plays on
+    # the same calendar day never double-count.
     now = datetime.now(timezone.utc)
     last = progress.last_completed_at
 
@@ -117,14 +119,16 @@ def _apply_streak(progress: KidGameProgress) -> None:
         progress.last_completed_at = now
     else:
         gap = now - last
-        if gap <= timedelta(hours=24):
-            pass  # already within the current streak window
-        elif gap <= timedelta(hours=48):
+        if gap > timedelta(hours=24):
+            # missed a full day without playing at all - streak dies
+            progress.current_streak = 1
+            progress.last_completed_at = now
+        elif now.date() != last.date():
+            # within the 24h grace window but a new calendar day - continue
             progress.current_streak += 1
             progress.last_completed_at = now
         else:
-            progress.current_streak = 1
-            progress.last_completed_at = now
+            pass  # same calendar day, already counted - no-op
 
     progress.longest_streak = max(progress.longest_streak, progress.current_streak)
 
