@@ -14,6 +14,8 @@ class KidOut(BaseModel):
     school: str
     grade: str
     learning_system: str
+    nickname: str | None = None
+    favorite_animal: str | None = None
 
     class Config:
         from_attributes = True

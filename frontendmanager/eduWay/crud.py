@@ -7,6 +7,18 @@ from sessionmanager import crud as session_crud
 from gamemanager import crud as game_crud
 
 
+def _attach_info(db: Session, kid: Kid) -> Kid:
+    # KidOut reads attributes straight off the Kid ORM object, but
+    # nickname/favorite_animal live on the separate KidInfo table -
+    # stamp them on before returning so serialization picks them up.
+    if kid is None:
+        return kid
+    info = kids_crud.get_kid_info(db, kid.id)
+    kid.nickname = info.nickname if info else None
+    kid.favorite_animal = info.favorite_animal if info else None
+    return kid
+
+
 # ---------- claim preview ----------
 # read-only: validates the claim token without consuming it, fetches
 # the kid record the parent already created so the kid app can show
@@ -17,7 +29,7 @@ def preview_claim(db: Session, claim_row_id: int, token: str) -> tuple[Kid | Non
     if kid_id is None:
         return None, False
 
-    kid = kids_crud.get_kid_by_id_only(db, kid_id)
+    kid = _attach_info(db, kids_crud.get_kid_by_id_only(db, kid_id))
     is_claimed = security_crud.get_kid_password(db, kid_id) is not None
     return kid, is_claimed
 
@@ -61,7 +73,7 @@ def resolve_login(db: Session, login_row_id: int, token: str) -> Kid | None:
     if kid_id is None:
         return None
     security_crud.mark_login_token_used(db, login_row_id)
-    return kids_crud.get_kid_by_id_only(db, kid_id)
+    return _attach_info(db, kids_crud.get_kid_by_id_only(db, kid_id))
 
 
 # ---------- QR login: confirm ----------
@@ -72,7 +84,7 @@ def confirm_login(db: Session, kid_id: int, password: str, remember_me: bool, de
     if not security_crud.verify_kid_password(db, kid_id, password):
         return None, None, None
 
-    kid = kids_crud.get_kid_by_id_only(db, kid_id)
+    kid = _attach_info(db, kids_crud.get_kid_by_id_only(db, kid_id))
     token, record = session_crud.issue_session(db, "kid", kid_id, remember_me, device_info)
     return kid, token, record
 
