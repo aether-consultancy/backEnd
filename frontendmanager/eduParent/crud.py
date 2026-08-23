@@ -10,6 +10,7 @@ from confirmationmanager.models import EmailVerificationCode
 from sessionmanager import crud as session_crud
 from kidsmanager import crud as kids_crud
 from kidsmanager.models import Kid, KidInfo
+from gamemanager import crud as game_crud
 
 
 # ---------- signup ----------
