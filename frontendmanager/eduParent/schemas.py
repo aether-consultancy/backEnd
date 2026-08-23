@@ -48,6 +48,9 @@ from kidsmanager.schemas import KidProfileOut, KidOut
 
 class KidProfileWithStatusOut(KidProfileOut):
     claimed: bool
+    current_streak: int
+    longest_streak: int
+    streak_active: bool
 
 class DashboardOut(BaseModel):
     parent: ParentOut

@@ -4,6 +4,7 @@ from kidsmanager.models import Kid
 from kidsmanager import crud as kids_crud
 from securitymanager import crud as security_crud
 from sessionmanager import crud as session_crud
+from gamemanager import crud as game_crud
 
 
 # ---------- claim preview ----------
@@ -97,3 +98,63 @@ def verify_reset_code(db: Session, kid_id: int, code: str) -> bool:
 
 def set_new_password(db: Session, kid_id: int, new_password: str) -> bool:
     return security_crud.consume_kid_reset_code_by_kid(db, kid_id, new_password)
+
+
+# ---------- game: wallet ----------
+# thin passthrough - facade exists so kid app never calls gamemanager
+# directly, same rule as dashboard above.
+
+def get_wallet(db: Session, kid_id: int):
+    return game_crud.get_or_create_wallet(db, kid_id)
+
+
+# ---------- game: crossword next levels ----------
+
+def get_next_crossword_levels(db: Session, kid_id: int, batch_size: int = 5):
+    return game_crud.get_next_levels(db, kid_id, "crossword", batch_size)
+
+
+# ---------- game: bundled home payload ----------
+
+def get_game_home(db: Session, kid_id: int):
+    wallet = get_wallet(db, kid_id)
+    current_level, levels = get_next_crossword_levels(db, kid_id)
+    progress = game_crud.get_or_create_progress(db, kid_id, "crossword")
+    streak_active = game_crud.is_streak_active(progress)
+    return wallet, current_level, levels, progress, streak_active
+
+
+# ---------- game: slot solved ----------
+
+def report_slot_solved(db, kid_id: int, level_id: int, slot_number: int):
+    level = game_crud.get_level_by_id(db, level_id)
+    if not level:
+        return None
+
+    xp_awarded = 0
+    if game_crud.mark_slot_solved(db, kid_id, level.id, slot_number):
+        game_crud.add_xp(db, kid_id, game_crud.XP_SLOT_SOLVED)
+        xp_awarded = game_crud.XP_SLOT_SOLVED
+
+    slot = next((s for s in level.slots if s["number"] == slot_number), None)
+    if not slot or not slot.get("bonus_coins") or game_crud.has_claimed_bonus(db, kid_id, level.id, slot_number):
+        wallet = game_crud.get_or_create_wallet(db, kid_id)
+        return False, 0, wallet, xp_awarded
+    wallet = game_crud.claim_bonus(db, kid_id, level.id, slot_number, slot["bonus_coins"])
+    return True, slot["bonus_coins"], wallet, xp_awarded
+
+
+# ---------- game: level complete ----------
+
+def report_level_complete(db, kid_id: int, level_id: int):
+    level = game_crud.get_level_by_id(db, level_id)
+    if not level:
+        return None
+    wallet, progress, xp_awarded = game_crud.complete_level(db, kid_id, level)
+    return level, wallet, progress, xp_awarded
+
+
+# ---------- game: leaderboard ----------
+
+def get_leaderboard(db, limit: int = 50):
+    return game_crud.get_leaderboard(db, limit=limit)

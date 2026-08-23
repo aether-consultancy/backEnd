@@ -90,6 +90,7 @@ def get_kid_profile(db: Session, kid_id: int, parent_id: int):
 
     info = kids_crud.get_kid_info(db, kid_id)
     claimed = security_crud.get_kid_password(db, kid_id) is not None
+    progress = game_crud.get_or_create_progress(db, kid_id, "crossword")
 
     return {
         "id": kid.id,
@@ -103,6 +104,9 @@ def get_kid_profile(db: Session, kid_id: int, parent_id: int):
         "favorite_animal": info.favorite_animal if info else None,
         "subjects_loved": info.subjects_loved if info else None,
         "claimed": claimed,
+        "current_streak": progress.current_streak,
+        "longest_streak": progress.longest_streak,
+        "streak_active": game_crud.is_streak_active(progress),
     }
 
 # ---------- dashboard ----------

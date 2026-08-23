@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from dbmanager.connection import get_db
 from frontendmanager.eduWay import crud
-from frontendmanager.eduWay.schemas import ClaimPreviewOut, ClaimConfirmIn, ClaimConfirmOut, MoreInfoIn, MoreInfoOut, LoginResolveOut, LoginConfirmIn, LoginConfirmOut, ResetPasswordVerifyIn, ResetPasswordVerifyOut, ResetPasswordSetIn, ResetPasswordSetOut
+from frontendmanager.eduWay.schemas import ClaimPreviewOut, ClaimConfirmIn, ClaimConfirmOut, MoreInfoIn, MoreInfoOut, LoginResolveOut, LoginConfirmIn, LoginConfirmOut, ResetPasswordVerifyIn, ResetPasswordVerifyOut, ResetPasswordSetIn, ResetPasswordSetOut, GameHomeOut
 from sessionmanager import crud as session_crud
 from fastapi import Header
 from kidsmanager.schemas import KidProfileOut
@@ -12,6 +12,7 @@ from kidsmanager import crud as kids_crud
 from kidsmanager.schemas import KidProfileOut
 from sessionmanager.deps import get_current_kid
 from kidsmanager.logic import is_valid_age
+from gamemanager.schemas import WalletOut, NextLevelsOut, GameLevelOut, SlotSolveIn, SlotSolveOut, LevelCompleteIn, LevelCompleteOut, LeaderboardEntryOut
 
 
 router = APIRouter(prefix="/frontend/kid", tags=["frontend-kid"])
@@ -110,6 +111,62 @@ def dashboard(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
 
 
 # ---------- reset password (kid side) ----------
+
+@router.get("/game/home", response_model=GameHomeOut)
+def frontend_game_home(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    wallet, current_level, levels, progress, streak_active = crud.get_game_home(db, kid.id)
+    return GameHomeOut(
+        wallet=wallet,
+        current_level=current_level,
+        levels=[GameLevelOut.model_validate(l) for l in levels],
+        current_streak=progress.current_streak,
+        longest_streak=progress.longest_streak,
+        streak_active=streak_active,
+    )
+
+
+@router.get("/game/leaderboard", response_model=list[LeaderboardEntryOut])
+def frontend_leaderboard(limit: int = 50, db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    return crud.get_leaderboard(db, limit=limit)
+
+
+@router.post("/game/crossword/slot-solved", response_model=SlotSolveOut)
+def frontend_slot_solved(payload: SlotSolveIn, db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    result = crud.report_slot_solved(db, kid.id, payload.level_id, payload.slot_number)
+    if result is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Level not found")
+    awarded, bonus_coins, wallet, xp_awarded = result
+    return SlotSolveOut(
+        bonus_awarded=awarded, bonus_coins=bonus_coins,
+        wallet_coins=wallet.coins, wallet_keys=wallet.keys,
+        xp_awarded=xp_awarded,
+    )
+
+
+@router.post("/game/crossword/complete", response_model=LevelCompleteOut)
+def frontend_level_complete(payload: LevelCompleteIn, db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    result = crud.report_level_complete(db, kid.id, payload.level_id)
+    if result is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Level not found")
+    level, wallet, progress, xp_awarded = result
+    return LevelCompleteOut(
+        coins_awarded=level.completion_reward,
+        wallet_coins=wallet.coins, wallet_keys=wallet.keys,
+        current_level=progress.current_level,
+        xp_awarded=xp_awarded,
+    )
+
+
+@router.get("/game/wallet", response_model=WalletOut)
+def frontend_game_wallet(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    return crud.get_wallet(db, kid.id)
+
+
+@router.get("/game/crossword/next", response_model=NextLevelsOut)
+def frontend_next_crossword_levels(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    current_level, levels = crud.get_next_crossword_levels(db, kid.id)
+    return NextLevelsOut(current_level=current_level, levels=[GameLevelOut.model_validate(l) for l in levels])
+
 
 @router.post("/reset-password/verify", response_model=ResetPasswordVerifyOut)
 def verify_reset_password(payload: ResetPasswordVerifyIn, db: Session = Depends(get_db)):

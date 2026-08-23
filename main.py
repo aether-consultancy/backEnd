@@ -5,6 +5,7 @@ from dbmanager.connection import Base, engine
 
 from parentmanager import router as parentmanager_router
 from kidsmanager import router as kidsmanager_router
+from gamemanager import router as gamemanager_router
 from securitymanager import router as securitymanager_router
 from sessionmanager import router as sessionmanager_router
 from confirmationmanager import router as confirmationmanager_router
@@ -24,6 +25,7 @@ app.add_middleware(
 
 app.include_router(parentmanager_router.router)
 app.include_router(kidsmanager_router.router)
+app.include_router(gamemanager_router.router)
 app.include_router(securitymanager_router.router)
 app.include_router(sessionmanager_router.router)
 app.include_router(confirmationmanager_router.router)

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from kidsmanager.schemas import KidOut, KidProfileOut
+from gamemanager.schemas import WalletOut, GameLevelOut
 
 
 class ClaimPreviewOut(BaseModel):
@@ -69,3 +70,16 @@ class ResetPasswordSetIn(BaseModel):
 
 class ResetPasswordSetOut(BaseModel):
     status: str
+
+
+# ---------- game: bundled home payload ----------
+# one call for the world/trail screen - wallet + next crossword levels
+# together, so the FE doesn't fire two requests on mount.
+
+class GameHomeOut(BaseModel):
+    wallet: WalletOut
+    current_level: int
+    levels: list[GameLevelOut]
+    current_streak: int
+    longest_streak: int
+    streak_active: bool
