@@ -13,6 +13,7 @@ class SubjectOut(BaseModel):
     kid_id: int
     name: str
     code: str
+    teacher_id: Optional[int] = None
     created_at: datetime
     class Config:
         from_attributes = True
@@ -36,3 +37,6 @@ class TeacherOut(BaseModel):
     created_at: datetime
     class Config:
         from_attributes = True
+
+class SubjectTeacherAssignIn(BaseModel):
+    teacher_id: int

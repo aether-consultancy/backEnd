@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from dbmanager.connection import get_db
 from frontendmanager.eduWay import crud
-from frontendmanager.eduWay.schemas import ClaimPreviewOut, ClaimConfirmIn, ClaimConfirmOut, MoreInfoIn, MoreInfoOut, LoginResolveOut, LoginConfirmIn, LoginConfirmOut, ResetPasswordVerifyIn, ResetPasswordVerifyOut, ResetPasswordSetIn, ResetPasswordSetOut, GameHomeOut
+from frontendmanager.eduWay.schemas import ClaimPreviewOut, ClaimConfirmIn, ClaimConfirmOut, MoreInfoIn, MoreInfoOut, LoginResolveOut, LoginConfirmIn, LoginConfirmOut, ResetPasswordVerifyIn, ResetPasswordVerifyOut, ResetPasswordSetIn, ResetPasswordSetOut, GameHomeOut, KidDashboardOut, SubjectTeacherAssignIn
 from sessionmanager import crud as session_crud
 from fastapi import Header
 from kidsmanager.schemas import KidProfileOut
@@ -89,13 +89,13 @@ def logout(authorization: str = Header(...), db: Session = Depends(get_db)):
     if not record:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or already revoked session")
 
-@router.get("/dashboard", response_model=KidProfileOut)
+@router.get("/dashboard", response_model=KidDashboardOut)
 def dashboard(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
     result = crud.get_dashboard(db, kid.id)
     if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid not found")
-    kid_row, info = result
-    return KidProfileOut(
+    kid_row, info, activated, subjects, teachers = result
+    return KidDashboardOut(
         id=kid_row.id,
         full_name=kid_row.full_name,
         school=kid_row.school,
@@ -106,7 +106,18 @@ def dashboard(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
         favorite_color=info.favorite_color if info else None,
         favorite_animal=info.favorite_animal if info else None,
         subjects_loved=info.subjects_loved if info else None,
+        school_activated=activated,
+        subjects=subjects,
+        teachers=teachers,
     )
+
+
+@router.patch("/school/subjects/{subject_id}/teacher")
+def assign_subject_teacher(subject_id: int, payload: SubjectTeacherAssignIn, db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    subject = crud.assign_subject_teacher(db, kid.id, subject_id, payload.teacher_id)
+    if subject is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Subject or teacher not found")
+    return subject
 
 
 

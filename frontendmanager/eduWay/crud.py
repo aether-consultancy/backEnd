@@ -5,6 +5,7 @@ from kidsmanager import crud as kids_crud
 from securitymanager import crud as security_crud
 from sessionmanager import crud as session_crud
 from gamemanager import crud as game_crud
+from schoolmanager import crud as school_crud
 
 
 def _attach_info(db: Session, kid: Kid) -> Kid:
@@ -98,7 +99,14 @@ def get_dashboard(db: Session, kid_id: int):
     if not kid:
         return None
     info = kids_crud.get_kid_info(db, kid_id)
-    return kid, info
+    activated = school_crud.is_school_activated(db, kid_id)
+    subjects = school_crud.get_subjects(db, kid_id)
+    teachers = school_crud.get_teachers(db, kid_id)
+    return kid, info, activated, subjects, teachers
+
+
+def assign_subject_teacher(db: Session, kid_id: int, subject_id: int, teacher_id: int):
+    return school_crud.assign_subject_teacher(db, kid_id, subject_id, teacher_id)
 
 
 

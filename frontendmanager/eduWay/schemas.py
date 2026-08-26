@@ -83,3 +83,18 @@ class GameHomeOut(BaseModel):
     current_streak: int
     longest_streak: int
     streak_active: bool
+from schoolmanager.schemas import SubjectOut, TeacherOut, SubjectTeacherAssignIn
+class KidDashboardOut(BaseModel):
+    id: int
+    full_name: str
+    school: str
+    grade: str
+    learning_system: str
+    nickname: str | None = None
+    age: int | None = None
+    favorite_color: str | None = None
+    favorite_animal: str | None = None
+    subjects_loved: list[str] | None = None
+    school_activated: bool = False
+    subjects: list[SubjectOut] = []
+    teachers: list[TeacherOut] = []

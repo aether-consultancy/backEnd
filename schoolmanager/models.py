@@ -8,6 +8,7 @@ class Subject(Base):
     kid_id = Column(Integer, ForeignKey("kids.id"), nullable=False)
     name = Column(String, nullable=False)
     code = Column(String, unique=True, nullable=False)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Teacher(Base):

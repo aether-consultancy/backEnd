@@ -75,3 +75,20 @@ def delete_teacher(db: Session, kid_id: int, teacher_id: int):
     db.delete(teacher)
     db.commit()
     return True
+
+def is_school_activated(db: Session, kid_id: int) -> bool:
+    has_subject = db.query(models.Subject).filter(models.Subject.kid_id == kid_id).first() is not None
+    has_teacher = db.query(models.Teacher).filter(models.Teacher.kid_id == kid_id).first() is not None
+    return has_subject and has_teacher
+
+def assign_subject_teacher(db: Session, kid_id: int, subject_id: int, teacher_id: int):
+    subject = db.query(models.Subject).filter(models.Subject.id == subject_id, models.Subject.kid_id == kid_id).first()
+    if not subject:
+        return None
+    teacher = db.query(models.Teacher).filter(models.Teacher.id == teacher_id, models.Teacher.kid_id == kid_id).first()
+    if not teacher:
+        return None
+    subject.teacher_id = teacher_id
+    db.commit()
+    db.refresh(subject)
+    return subject
