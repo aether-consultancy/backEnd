@@ -124,3 +124,76 @@ def reset_kid_password_ep(kid_id: int, db: Session = Depends(get_db), parent: Pa
         raise HTTPException(status_code=404, detail="Kid not found")
     code, expires_at = result
     return ResetKidPasswordOut(code=code, expires_at=expires_at.isoformat())
+
+from schoolmanager import schemas as school_schemas
+
+
+@router.post("/kids/{kid_id}/subjects", response_model=school_schemas.SubjectOut)
+def create_subject(kid_id: int, payload: school_schemas.SubjectCreate, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    try:
+        subject = crud.create_subject(db, parent.id, kid_id, payload.name)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    if subject is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid not found")
+    return subject
+
+
+@router.get("/kids/{kid_id}/subjects", response_model=list[school_schemas.SubjectOut])
+def list_subjects(kid_id: int, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    subjects = crud.list_subjects(db, parent.id, kid_id)
+    if subjects is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid not found")
+    return subjects
+
+
+@router.patch("/kids/{kid_id}/subjects/{subject_id}", response_model=school_schemas.SubjectOut)
+def update_subject(kid_id: int, subject_id: int, payload: school_schemas.SubjectUpdate, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    subject = crud.update_subject(db, parent.id, kid_id, subject_id, payload.name)
+    if subject is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid or subject not found")
+    return subject
+
+
+@router.delete("/kids/{kid_id}/subjects/{subject_id}")
+def delete_subject(kid_id: int, subject_id: int, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    if not crud.delete_subject(db, parent.id, kid_id, subject_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid or subject not found")
+    return {"deleted": True}
+
+
+@router.post("/kids/{kid_id}/teachers", response_model=school_schemas.TeacherOut)
+def create_teacher(kid_id: int, payload: school_schemas.TeacherCreate, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    try:
+        teacher = crud.create_teacher(db, parent.id, kid_id, payload.name, payload.phone, payload.email)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    if teacher is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid not found")
+    return teacher
+
+
+@router.get("/kids/{kid_id}/teachers", response_model=list[school_schemas.TeacherOut])
+def list_teachers(kid_id: int, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    teachers = crud.list_teachers(db, parent.id, kid_id)
+    if teachers is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid not found")
+    return teachers
+
+
+@router.patch("/kids/{kid_id}/teachers/{teacher_id}", response_model=school_schemas.TeacherOut)
+def update_teacher(kid_id: int, teacher_id: int, payload: school_schemas.TeacherUpdate, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    try:
+        teacher = crud.update_teacher(db, parent.id, kid_id, teacher_id, payload.name, payload.phone, payload.email)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    if teacher is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid or teacher not found")
+    return teacher
+
+
+@router.delete("/kids/{kid_id}/teachers/{teacher_id}")
+def delete_teacher(kid_id: int, teacher_id: int, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    if not crud.delete_teacher(db, parent.id, kid_id, teacher_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid or teacher not found")
+    return {"deleted": True}

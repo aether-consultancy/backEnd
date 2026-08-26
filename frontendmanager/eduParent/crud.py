@@ -131,3 +131,73 @@ def reset_kid_password(db: Session, kid_id: int, parent_id: int):
         return None
     code, record = security_crud.create_kid_reset_code(db, kid_id)
     return code, record.expires_at
+
+from schoolmanager import crud as school_crud, logic as school_logic
+
+
+def create_subject(db, parent_id, kid_id, name):
+    kid = kids_crud.get_kid_by_id(db, kid_id, parent_id)
+    if not kid:
+        return None
+    if school_logic.subject_exists(db, kid_id, name):
+        raise ValueError("Subject already exists")
+    return school_crud.create_subject(db, kid_id, name)
+
+
+def list_subjects(db, parent_id, kid_id):
+    kid = kids_crud.get_kid_by_id(db, kid_id, parent_id)
+    if not kid:
+        return None
+    return school_crud.get_subjects(db, kid_id)
+
+
+def update_subject(db, parent_id, kid_id, subject_id, name):
+    kid = kids_crud.get_kid_by_id(db, kid_id, parent_id)
+    if not kid:
+        return None
+    return school_crud.update_subject(db, kid_id, subject_id, name)
+
+
+def delete_subject(db, parent_id, kid_id, subject_id):
+    kid = kids_crud.get_kid_by_id(db, kid_id, parent_id)
+    if not kid:
+        return False
+    return school_crud.delete_subject(db, kid_id, subject_id)
+
+
+def create_teacher(db, parent_id, kid_id, name, phone, email):
+    kid = kids_crud.get_kid_by_id(db, kid_id, parent_id)
+    if not kid:
+        return None
+    if not school_logic.is_valid_phone(phone):
+        raise ValueError("Invalid phone")
+    if email and not school_logic.is_valid_email(email):
+        raise ValueError("Invalid email")
+    if school_logic.teacher_exists(db, kid_id, name, phone):
+        raise ValueError("Teacher already exists")
+    return school_crud.create_teacher(db, kid_id, name, phone, email)
+
+
+def list_teachers(db, parent_id, kid_id):
+    kid = kids_crud.get_kid_by_id(db, kid_id, parent_id)
+    if not kid:
+        return None
+    return school_crud.get_teachers(db, kid_id)
+
+
+def update_teacher(db, parent_id, kid_id, teacher_id, name, phone, email):
+    kid = kids_crud.get_kid_by_id(db, kid_id, parent_id)
+    if not kid:
+        return None
+    if phone and not school_logic.is_valid_phone(phone):
+        raise ValueError("Invalid phone")
+    if email and not school_logic.is_valid_email(email):
+        raise ValueError("Invalid email")
+    return school_crud.update_teacher(db, kid_id, teacher_id, name, phone, email)
+
+
+def delete_teacher(db, parent_id, kid_id, teacher_id):
+    kid = kids_crud.get_kid_by_id(db, kid_id, parent_id)
+    if not kid:
+        return False
+    return school_crud.delete_teacher(db, kid_id, teacher_id)

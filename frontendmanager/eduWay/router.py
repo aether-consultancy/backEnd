@@ -186,3 +186,34 @@ def set_reset_password(payload: ResetPasswordSetIn, db: Session = Depends(get_db
     if not ok:
         raise HTTPException(status_code=400, detail="Reset not verified")
     return ResetPasswordSetOut(status="password_reset")
+
+from schoolmanager import schemas as school_schemas
+
+
+@router.get("/subjects", response_model=list[school_schemas.SubjectOut])
+def list_subjects_kid(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    return crud.list_subjects(db, kid.id)
+
+
+@router.patch("/subjects/{subject_id}", response_model=school_schemas.SubjectOut)
+def update_subject_kid(subject_id: int, payload: school_schemas.SubjectUpdate, db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    subject = crud.update_subject(db, kid.id, subject_id, payload.name)
+    if subject is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Subject not found")
+    return subject
+
+
+@router.get("/teachers", response_model=list[school_schemas.TeacherOut])
+def list_teachers_kid(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    return crud.list_teachers(db, kid.id)
+
+
+@router.patch("/teachers/{teacher_id}", response_model=school_schemas.TeacherOut)
+def update_teacher_kid(teacher_id: int, payload: school_schemas.TeacherUpdate, db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    try:
+        teacher = crud.update_teacher(db, kid.id, teacher_id, payload.name, payload.phone, payload.email)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    if teacher is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Teacher not found")
+    return teacher

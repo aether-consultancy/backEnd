@@ -170,3 +170,25 @@ def report_level_complete(db, kid_id: int, level_id: int):
 
 def get_leaderboard(db, limit: int = 50):
     return game_crud.get_leaderboard(db, limit=limit)
+
+from schoolmanager import crud as school_crud, logic as school_logic
+
+
+def list_subjects(db, kid_id):
+    return school_crud.get_subjects(db, kid_id)
+
+
+def update_subject(db, kid_id, subject_id, name):
+    return school_crud.update_subject(db, kid_id, subject_id, name)
+
+
+def list_teachers(db, kid_id):
+    return school_crud.get_teachers(db, kid_id)
+
+
+def update_teacher(db, kid_id, teacher_id, name, phone, email):
+    if phone and not school_logic.is_valid_phone(phone):
+        raise ValueError("Invalid phone")
+    if email and not school_logic.is_valid_email(email):
+        raise ValueError("Invalid email")
+    return school_crud.update_teacher(db, kid_id, teacher_id, name, phone, email)

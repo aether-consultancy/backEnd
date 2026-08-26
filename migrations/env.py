@@ -14,6 +14,7 @@ import securitymanager.models
 import sessionmanager.models
 import confirmationmanager.models
 import gamemanager.models
+import schoolmanager.models
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
