@@ -14,6 +14,7 @@ class SubjectOut(BaseModel):
     name: str
     code: str
     teacher_id: Optional[int] = None
+    is_favorite: bool = False
     created_at: datetime
     class Config:
         from_attributes = True

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean
 from sqlalchemy.sql import func
 from dbmanager.connection import Base
 
@@ -9,6 +9,7 @@ class Subject(Base):
     name = Column(String, nullable=False)
     code = Column(String, unique=True, nullable=False)
     teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=True)
+    is_favorite = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Teacher(Base):

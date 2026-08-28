@@ -86,6 +86,18 @@ def has_matched_subject(db: Session, kid_id: int) -> bool:
         models.Subject.kid_id == kid_id, models.Subject.teacher_id.isnot(None)
     ).first() is not None
 
+def set_favorite_subject(db: Session, kid_id: int, subject_id: int):
+    subject = get_subject(db, kid_id, subject_id)
+    if not subject:
+        return None
+    db.query(models.Subject).filter(
+        models.Subject.kid_id == kid_id, models.Subject.is_favorite.is_(True)
+    ).update({"is_favorite": False})
+    subject.is_favorite = True
+    db.commit()
+    db.refresh(subject)
+    return subject
+
 def assign_subject_teacher(db: Session, kid_id: int, subject_id: int, teacher_id: int):
     subject = db.query(models.Subject).filter(models.Subject.id == subject_id, models.Subject.kid_id == kid_id).first()
     if not subject:

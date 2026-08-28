@@ -195,6 +195,10 @@ def list_teachers(db, kid_id):
     return school_crud.get_teachers(db, kid_id)
 
 
+def set_favorite_subject(db, kid_id, subject_id):
+    return school_crud.set_favorite_subject(db, kid_id, subject_id)
+
+
 def update_teacher(db, kid_id, teacher_id, name, phone, email):
     if phone and not school_logic.is_valid_phone(phone):
         raise ValueError("Invalid phone")

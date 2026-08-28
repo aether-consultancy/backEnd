@@ -192,6 +192,14 @@ def update_teacher(kid_id: int, teacher_id: int, payload: school_schemas.Teacher
     return teacher
 
 
+@router.patch("/kids/{kid_id}/subjects/{subject_id}/favorite", response_model=school_schemas.SubjectOut)
+def set_favorite_subject(kid_id: int, subject_id: int, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
+    subject = crud.set_favorite_subject(db, parent.id, kid_id, subject_id)
+    if subject is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid or subject not found")
+    return subject
+
+
 @router.delete("/kids/{kid_id}/teachers/{teacher_id}")
 def delete_teacher(kid_id: int, teacher_id: int, db: Session = Depends(get_db), parent: Parent = Depends(get_current_parent)):
     if not crud.delete_teacher(db, parent.id, kid_id, teacher_id):

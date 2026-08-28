@@ -202,6 +202,14 @@ def set_reset_password(payload: ResetPasswordSetIn, db: Session = Depends(get_db
 from schoolmanager import schemas as school_schemas
 
 
+@router.patch("/subjects/{subject_id}/favorite", response_model=school_schemas.SubjectOut)
+def set_favorite_subject_kid(subject_id: int, db: Session = Depends(get_db), kid=Depends(get_current_kid)):
+    subject = crud.set_favorite_subject(db, kid.id, subject_id)
+    if subject is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Subject not found")
+    return subject
+
+
 @router.get("/subjects", response_model=list[school_schemas.SubjectOut])
 def list_subjects_kid(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
     return crud.list_subjects(db, kid.id)

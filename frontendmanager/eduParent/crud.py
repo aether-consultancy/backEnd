@@ -196,6 +196,13 @@ def update_teacher(db, parent_id, kid_id, teacher_id, name, phone, email):
     return school_crud.update_teacher(db, kid_id, teacher_id, name, phone, email)
 
 
+def set_favorite_subject(db, parent_id, kid_id, subject_id):
+    kid = kids_crud.get_kid_by_id(db, kid_id, parent_id)
+    if not kid:
+        return None
+    return school_crud.set_favorite_subject(db, kid_id, subject_id)
+
+
 def delete_teacher(db, parent_id, kid_id, teacher_id):
     kid = kids_crud.get_kid_by_id(db, kid_id, parent_id)
     if not kid:
