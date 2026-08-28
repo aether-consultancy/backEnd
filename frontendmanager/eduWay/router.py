@@ -94,7 +94,7 @@ def dashboard(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
     result = crud.get_dashboard(db, kid.id)
     if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Kid not found")
-    kid_row, info, activated, subjects, teachers = result
+    kid_row, info, activated, setup_complete, subjects, teachers = result
     return KidDashboardOut(
         id=kid_row.id,
         full_name=kid_row.full_name,
@@ -107,6 +107,7 @@ def dashboard(db: Session = Depends(get_db), kid=Depends(get_current_kid)):
         favorite_animal=info.favorite_animal if info else None,
         subjects_loved=info.subjects_loved if info else None,
         school_activated=activated,
+        school_setup_complete=setup_complete,
         subjects=subjects,
         teachers=teachers,
     )

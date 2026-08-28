@@ -96,5 +96,6 @@ class KidDashboardOut(BaseModel):
     favorite_animal: str | None = None
     subjects_loved: list[str] | None = None
     school_activated: bool = False
+    school_setup_complete: bool = False
     subjects: list[SubjectOut] = []
     teachers: list[TeacherOut] = []

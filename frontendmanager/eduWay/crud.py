@@ -100,9 +100,10 @@ def get_dashboard(db: Session, kid_id: int):
         return None
     info = kids_crud.get_kid_info(db, kid_id)
     activated = school_crud.is_school_activated(db, kid_id)
+    setup_complete = school_crud.has_matched_subject(db, kid_id)
     subjects = school_crud.get_subjects(db, kid_id)
     teachers = school_crud.get_teachers(db, kid_id)
-    return kid, info, activated, subjects, teachers
+    return kid, info, activated, setup_complete, subjects, teachers
 
 
 def assign_subject_teacher(db: Session, kid_id: int, subject_id: int, teacher_id: int):

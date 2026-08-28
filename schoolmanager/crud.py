@@ -81,6 +81,11 @@ def is_school_activated(db: Session, kid_id: int) -> bool:
     has_teacher = db.query(models.Teacher).filter(models.Teacher.kid_id == kid_id).first() is not None
     return has_subject and has_teacher
 
+def has_matched_subject(db: Session, kid_id: int) -> bool:
+    return db.query(models.Subject).filter(
+        models.Subject.kid_id == kid_id, models.Subject.teacher_id.isnot(None)
+    ).first() is not None
+
 def assign_subject_teacher(db: Session, kid_id: int, subject_id: int, teacher_id: int):
     subject = db.query(models.Subject).filter(models.Subject.id == subject_id, models.Subject.kid_id == kid_id).first()
     if not subject:
